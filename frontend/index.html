@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>J.A.R.V.I.S.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="hud">
+        <div id="scanlines"></div>
+
+        <header id="hud-header">
+            <div class="header-left">
+                <span class="header-logo">J.A.R.V.I.S.</span>
+                <span class="header-sub">STARK INDUSTRIES OS &nbsp;▸&nbsp; v2.0</span>
+            </div>
+            <div class="header-center">
+                <span id="status"></span>
+            </div>
+            <div class="header-right">
+                <span id="time-display">--:--:--</span>
+                <span id="connection-status" class="conn-dot">■ ONLINE</span>
+            </div>
+        </header>
+
+        <main id="main-layout">
+
+            <div id="panel-left" class="hud-panel">
+                <div class="panel-title">◈ INPUT LOG</div>
+                <div id="transcript-user"></div>
+            </div>
+
+            <div id="center">
+                <div id="reactor-wrapper">
+                    <div id="ring-outer"></div>
+                    <div id="ring-mid"></div>
+                    <div id="ring-inner"></div>
+                    <div id="orb-container">
+                        <div id="orb" class="standby"></div>
+                    </div>
+                </div>
+                <div id="state-label">STANDBY</div>
+                <button id="talk-btn">▶&nbsp;&nbsp;MIT JARVIS SPRECHEN</button>
+            </div>
+
+            <div id="panel-right" class="hud-panel">
+                <div class="panel-title">◈ JARVIS RESPONSE</div>
+                <div id="transcript-jarvis"></div>
+            </div>
+
+        </main>
+    </div>
+    <script src="/static/main.js"></script>
+</body>
+</html>
