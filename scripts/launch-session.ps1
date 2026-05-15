@@ -1,4 +1,4 @@
-# Jarvis — Launch Session (Windows)
+# Work Session — Launch (Windows)
 
 $configPath = Join-Path $PSScriptRoot "..\config.json"
 $config = Get-Content $configPath | ConvertFrom-Json
@@ -28,30 +28,23 @@ function Snap-Window($proc, $x, $y, $w, $h) {
 $leftX  = -1920; $leftY  = 7
 $rightX = 0;     $rightY = 0
 $screenW = 1920; $screenH = 1080
-$halfW = 960;    $halfH = 540
 
-# 1. Start Jarvis server if not already running on port 8340
-$serverRunning = Get-NetTCPConnection -LocalPort 8340 -ErrorAction SilentlyContinue
-if (-not $serverRunning) {
-    Start-Process python -ArgumentList "server.py" `
-        -WorkingDirectory $WORKSPACE_PATH `
-        -RedirectStandardOutput "$env:TEMP\jarvis_stdout.txt" `
-        -RedirectStandardError "$env:TEMP\jarvis_stderr.txt" `
-        -NoNewWindow
-    Start-Sleep -Seconds 3
+# 1. Open Claude Desktop App on LEFT screen (fullscreen)
+$claudeExe = "$env:LOCALAPPDATA\AnthropicClaude\claude.exe"
+if (Test-Path $claudeExe) {
+    Start-Process $claudeExe
+} else {
+    Start-Process "claude://"
 }
 
-# 2. Open Chrome with Jarvis on the LEFT screen
-Start-Process "chrome" -ArgumentList "--autoplay-policy=no-user-gesture-required http://localhost:8340"
-
-# 3. Open VS Code on the RIGHT screen
+# 2. Open VS Code on the RIGHT screen
 $vscodePath = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe"
 Start-Process $vscodePath -ArgumentList "`"$WORKSPACE_PATH`""
 
-# 4. Open Spotify and immediately play the track
+# 3. Open Spotify and immediately play the track
 Start-Process $config.spotify_track
 
-# 5. Open Notion
+# 4. Open Notion (To-Dos)
 $notionExe = "$env:LOCALAPPDATA\Programs\Notion\Notion.exe"
 if (Test-Path $notionExe) {
     Start-Process $notionExe
@@ -59,25 +52,46 @@ if (Test-Path $notionExe) {
     Start-Process "notion://"
 }
 
+# 5. Play rotating greeting MP3
+$greetDir  = Join-Path $PSScriptRoot "..\assets\greetings"
+$indexFile = Join-Path $greetDir "index.txt"
+if (Test-Path $indexFile) {
+    $idx = [int](Get-Content $indexFile -Raw).Trim()
+    $mp3 = Join-Path $greetDir "greeting_$idx.mp3"
+    if (Test-Path $mp3) {
+        Add-Type -AssemblyName presentationCore
+        $player = New-Object System.Windows.Media.MediaPlayer
+        $player.Open([Uri]("file:///" + $mp3.Replace('\', '/')))
+        $player.Play()
+        Start-Sleep -Seconds 2
+        $dur = [int]$player.NaturalDuration.TimeSpan.TotalSeconds + 2
+        Start-Sleep -Seconds $dur
+        $player.Close()
+    }
+    Set-Content $indexFile (($idx + 1) % 3)
+}
+
 # 6. Wait for windows to open, then snap into position
 Start-Sleep -Seconds 4
 
-# Left screen: Jarvis (fullscreen)
-$chrome = Get-Process -Name "chrome" -ErrorAction SilentlyContinue |
+# Left screen: Claude fullscreen
+$claude = Get-Process -Name "claude" -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-Snap-Window $chrome $leftX $leftY $screenW $screenH
+Snap-Window $claude $leftX $leftY $screenW $screenH
 
-# Right screen top-left: VS Code
-$vscode = Get-Process -Name "Code" -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-Snap-Window $vscode $rightX $rightY $halfW $halfH
-
-# Right screen top-right: Spotify
-$spotify = Get-Process -Name "Spotify" -ErrorAction SilentlyContinue |
-    Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-Snap-Window $spotify ($rightX + $halfW) $rightY $halfW $halfH
-
-# Right screen bottom-right: Notion
+# Right screen left half: Notion
 $notion = Get-Process -Name "Notion" -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-Snap-Window $notion ($rightX + $halfW) ($rightY + $halfH) $halfW $halfH
+Snap-Window $notion $rightX $rightY ($screenW / 2) ($screenH - 45)
+
+# Right screen right half: VS Code
+$vscode = Get-Process -Name "Code" -ErrorAction SilentlyContinue |
+    Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+Snap-Window $vscode ($rightX + $screenW / 2) $rightY ($screenW / 2) ($screenH - 45)
+
+# Spotify: minimize (plays in background)
+$spotify = Get-Process -Name "Spotify" -ErrorAction SilentlyContinue |
+    Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+if ($spotify -and $spotify.MainWindowHandle -ne 0) {
+    [WinPos]::ShowWindow($spotify.MainWindowHandle, 6) | Out-Null
+}

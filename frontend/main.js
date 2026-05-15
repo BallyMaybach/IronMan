@@ -105,6 +105,8 @@ function connect() {
             addMessage('jarvis', data.text);
             if (data.audio && data.audio.length > 0) {
                 queueAudio(data.audio);
+            } else if (data.text && data.text.length > 0) {
+                speakBrowserTTS(data.text);
             } else {
                 enterStandby();
             }
@@ -122,6 +124,39 @@ function connect() {
         talkBtn.classList.add('hidden');
         setTimeout(connect, 3000);
     };
+}
+
+// ── BROWSER TTS FALLBACK ──
+
+let ttsQueue = [];
+
+function speakBrowserTTS(text) {
+    if (!window.speechSynthesis) { enterStandby(); return; }
+    ttsQueue.push(text);
+    if (!isPlaying) _playNextTTS();
+}
+
+function _playNextTTS() {
+    if (ttsQueue.length === 0) {
+        isPlaying = false;
+        setTimeout(enterStandby, 400);
+        return;
+    }
+    isPlaying = true;
+    setOrbState('speaking');
+    setStateLabel('SPEAKING');
+    const text = ttsQueue.shift();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'de-DE';
+    utter.rate = 1.05;
+    utter.pitch = 0.9;
+    const voices = window.speechSynthesis.getVoices();
+    const german = voices.find(v => v.lang.startsWith('de') && v.name.toLowerCase().includes('male'))
+        || voices.find(v => v.lang.startsWith('de'));
+    if (german) utter.voice = german;
+    utter.onend = () => _playNextTTS();
+    utter.onerror = () => _playNextTTS();
+    window.speechSynthesis.speak(utter);
 }
 
 // ── AUDIO QUEUE ──
@@ -167,6 +202,31 @@ function playNext() {
         });
     });
 }
+
+// ── MIC SELECTOR ──
+
+const micSelect = document.getElementById('mic-select');
+
+async function populateMicList() {
+    try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter(d => d.kind === 'audioinput');
+        micSelect.innerHTML = '';
+        inputs.forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d.deviceId;
+            opt.textContent = d.label || `Mikrofon ${d.deviceId.slice(0, 8)}`;
+            // Pre-select HyperX if found
+            if (d.label && d.label.toLowerCase().includes('hyperx')) opt.selected = true;
+            micSelect.appendChild(opt);
+        });
+    } catch(e) {
+        console.warn('Mic list error:', e);
+    }
+}
+
+populateMicList();
 
 // ── SPEECH RECOGNITION ──
 

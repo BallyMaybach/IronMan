@@ -364,6 +364,43 @@ body {
     50%       { box-shadow: 0 0 36px rgba(255, 68, 68, 0.7); }
 }
 
+/* ── MIC SELECTOR ── */
+#mic-selector-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.mic-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+#mic-select {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: 'Share Tech Mono', 'Courier New', Courier, monospace;
+    font-size: 10px;
+    padding: 4px 8px;
+    cursor: pointer;
+    max-width: 200px;
+    outline: none;
+}
+
+#mic-select:focus {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+#mic-select option {
+    background: #000c1c;
+    color: var(--text);
+}
+
 /* ── TRANSCRIPT PANELS ── */
 #transcript-user,
 #transcript-jarvis {

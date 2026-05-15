@@ -41,6 +41,8 @@ http = httpx.AsyncClient(timeout=30)
 
 app = FastAPI()
 
+print("=== JARVIS SERVER v2 (two-part greeting) ===", flush=True)
+
 import browser_tools
 import screen_capture
 
@@ -135,11 +137,13 @@ def extract_action(text: str):
     return text, None
 
 
+_elevenlabs_dead = False  # circuit breaker: skip API after quota/auth failure
+
 async def synthesize_speech(text: str) -> bytes:
-    if not text.strip():
+    global _elevenlabs_dead
+    if not text.strip() or _elevenlabs_dead:
         return b""
 
-    # Split long text into chunks at sentence boundaries to avoid ElevenLabs cutoff
     chunks = []
     if len(text) > 250:
         sentences = re.split(r'(?<=[.!?])\s+', text)
@@ -171,6 +175,10 @@ async def synthesize_speech(text: str) -> bytes:
             print(f"  TTS chunk status: {resp.status_code}, size: {len(resp.content)}", flush=True)
             if resp.status_code == 200:
                 audio_parts.append(resp.content)
+            elif resp.status_code in (401, 402, 403):
+                print(f"  TTS quota/auth error ({resp.status_code}) — disabling ElevenLabs", flush=True)
+                _elevenlabs_dead = True
+                break
             else:
                 print(f"  TTS error body: {resp.text[:200]}", flush=True)
         except Exception as e:
@@ -209,14 +217,82 @@ async def execute_action(action: dict) -> str:
     return ""
 
 
+_last_activate_time = 0.0
+
 async def process_message(session_id: str, user_text: str, ws: WebSocket):
     """Process message and send responses via WebSocket."""
+    global _last_activate_time
     if session_id not in conversations:
         conversations[session_id] = []
 
-    # Refresh weather + tasks on activate
+    # ── ACTIVATE: two-part greeting ──────────────────────────────────────────
     if "activate" in user_text.lower():
-        refresh_data()
+        now_ts = time.time()
+        if now_ts - _last_activate_time < 30:
+            print("  Activate ignoriert (Duplikat)", flush=True)
+            return
+        _last_activate_time = now_ts
+        conversations[session_id].append({"role": "user", "content": user_text})
+
+        # Part 1: instant greeting — pure personality, no external data
+        now = time.strftime("%H:%M")
+        greeting_system = (
+            f"Du bist J.A.R.V.I.S. — der hochintelligente KI-Assistent von {USER_NAME} aus Iron Man. "
+            f"Sprich ausschliesslich Deutsch. Spreche {USER_ADDRESS} als 'Sir' an, immer mit 'Sie'. "
+            f"Dein Charakter: trocken, brillant, britisch-sarkastisch — wie ein Butler der Tony Stark zwanzig Jahre "
+            f"lang ertragen hat und trotzdem loyal geblieben ist. Du bist immer einen Schritt voraus, "
+            f"machst subtile Bemerkungen über die Absurditaet der Situation und hast fuer alles eine trockene Antwort. "
+            f"Aktuelle Uhrzeit: {now}. "
+            f"Begrüsse Sir mit GENAU 2 Saetzen: "
+            f"Satz 1 — passend zur Uhrzeit, mit einer witzigen oder ironischen Beobachtung dazu (nicht nur 'Guten Abend'). "
+            f"Satz 2 — eine weitere trockene Bemerkung, ein leicht sarkastischer Kommentar zur Uhrzeit oder zum Tag, "
+            f"der zeigt dass du alles weisst und schon auf alles vorbereitet bist. "
+            f"ABSOLUTES VERBOT: keine Tags, keine Klammern, kein [sarcastic], kein [ACTION], "
+            f"kein 'ich lade', kein 'einen Moment', kein 'ich checke'. Nur sprechen."
+        )
+        greeting_resp = await ai.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=120,
+            system=greeting_system,
+            messages=[{"role": "user", "content": user_text}],
+        )
+        greeting_text = greeting_resp.content[0].text.strip()
+        print(f"  Greeting: {greeting_text}", flush=True)
+        conversations[session_id].append({"role": "assistant", "content": greeting_text})
+        # Send immediately — no TTS wait, browser handles speech
+        await ws.send_json({"type": "response", "text": greeting_text, "audio": ""})
+
+        # Part 2: use already-loaded tasks (loaded at startup)
+        if TASKS_INFO:
+            task_block = "\n".join(f"  - {s}" for s in TASKS_INFO)
+            todos_system = (
+                f"Du bist J.A.R.V.I.S. Sprich ausschliesslich Deutsch. Spreche {USER_ADDRESS} als 'Sir' an. "
+                f"Ton: trocken, praezise, mit einem Hauch Sarkasmus — du hast diese Liste schon gelesen "
+                f"bevor Sir aufgewacht ist. "
+                f"KEINE Tags, KEINE Klammern, kein [ACTION]. "
+                f"Nenne die Aufgaben aus 'Diese Woche' in 1-2 Saetzen — fluessig, nicht als Liste. "
+                f"Wenn du magst, einen kurzen trockenen Kommentar dazu (optional, nur wenn es passt). "
+                f"Falls weitere Abschnitte ('Nächste Woche', 'Sobald Zeit') Eintraege haben, "
+                f"erwaehne die Gesamtzahl kurz.\n\n"
+                f"Aufgaben:\n{task_block}"
+            )
+            todos_resp = await ai.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=150,
+                system=todos_system,
+                messages=[{"role": "user", "content": "Nenne mir meine aktuellen Aufgaben."}],
+            )
+            todos_text = todos_resp.content[0].text.strip()
+            print(f"  Todos: {todos_text}", flush=True)
+            todos_audio = await synthesize_speech(todos_text)
+            conversations[session_id].append({"role": "assistant", "content": todos_text})
+            await ws.send_json({
+                "type": "response",
+                "text": todos_text,
+                "audio": base64.b64encode(todos_audio).decode("utf-8") if todos_audio else "",
+            })
+        return
+    # ─────────────────────────────────────────────────────────────────────────
 
     conversations[session_id].append({"role": "user", "content": user_text})
     history = conversations[session_id][-16:]
@@ -244,8 +320,8 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
             "audio": base64.b64encode(audio).decode("utf-8") if audio else "",
         })
 
-    # Execute action if any — never during activate greeting
-    if action and "activate" not in user_text.lower():
+    # Execute action if any
+    if action:
         print(f"  Action: {action['type']} -> {action['payload'][:100]}", flush=True)
 
         # Quick voice feedback for SCREEN so user knows Jarvis is working

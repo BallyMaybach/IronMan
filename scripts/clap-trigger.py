@@ -22,7 +22,7 @@ VBS_PATH = os.path.join(WORKSPACE_PATH, "scripts", "launch-hidden.vbs")
 
 SAMPLE_RATE = 44100
 BLOCK_SIZE = 1024
-THRESHOLD = 0.10
+THRESHOLD = 1.0
 MIN_GAP = 0.1
 MAX_GAP = 1.2
 COOLDOWN = 10.0
@@ -66,7 +66,7 @@ def find_device(name_fragment):
             return i
     return None
 
-device = find_device("G435") or find_device("HyperX") or None
+device = find_device("HyperX") or find_device("G435") or None
 log(f"Verwende Gerät: {sd.query_devices(device)['name'] if device is not None else 'Standard'}")
 
 with sd.InputStream(
