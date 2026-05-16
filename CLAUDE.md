@@ -1,28 +1,56 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+- **Projekt:** Jarvis Clap-Trigger
+- **Was es tut:** Doppelklatschen → Begrüßungs-MP3 + Claude Desktop (links fullscreen) + Notion (rechts links) + VS Code (rechts rechts) + Spotify (minimiert, Song läuft)
+- **Toggle:** System-Tray-Icon (pystray) — Jarvis kann damit ein/ausgeschaltet werden ohne den Task zu stoppen
+- **Stand:** Läuft stabil. Mai 2026 — alter Voice-Assistant-Kram entfernt, nur noch Clap-Trigger.
+- **Deployment:** Lokal via Windows Task Scheduler (Task: `JarvisClapTrigger`)
 
 ---
 
-## Was ist dieses Projekt
+## Dateistruktur
 
-Work-Session-Launcher für Bally. Doppelklatschen → Begrüßungs-MP3 spielt ab → Claude Desktop App (links, fullscreen) + VS Code + Notion (rechts) + Spotify (minimiert) öffnen sich automatisch.
-
-Der alte Jarvis-Voiceassistent (FastAPI + Claude Haiku + ElevenLabs TTS + Browser-Frontend) ist noch im Repo vorhanden aber **nicht mehr der primäre Use Case**.
+```
+jarvis-voice-assistant-master/
+├── scripts/
+│   ├── clap-trigger.py       ← Hauptskript, läuft permanent im Hintergrund
+│   ├── launch-session.ps1    ← Startet alle Apps + MP3
+│   ├── launch-hidden.vbs     ← Startet launch-session.ps1 ohne Terminal-Fenster
+│   └── generate-greetings.py ← ElevenLabs MP3s neu generieren (einmalig)
+├── assets/greetings/
+│   ├── greeting_0/1/2.mp3    ← Pre-generierte Begrüßungen (Felix Serenitas)
+│   └── index.txt             ← Aktueller MP3-Index (rotiert 0→1→2→0)
+├── config.json               ← API-Keys, Pfade, Spotify-Track (gitignored)
+├── config.example.json
+├── requirements.txt          ← Nur: sounddevice, numpy
+└── CLAUDE.md
+```
 
 ---
 
-## Clap-Trigger & Session-Start
+## Clap-Trigger (clap-trigger.py)
 
-`scripts/clap-trigger.py` läuft permanent im Hintergrund (Windows Task Scheduler, Task: `JarvisClapTrigger`). Erkennt zwei Klatscher innerhalb 1.2s. Startet dann `scripts/launch-session.ps1` via `scripts/launch-clap.vbs` (unsichtbar, kein Terminal-Fenster).
+Läuft permanent via Task Scheduler. Erkennt Doppelklatschen via:
+- **RMS-Threshold** (Mindestlautstärke)
+- **Frequenzanalyse**: ≥40% Energie über 2kHz → unterscheidet Klatschen von Reden/Musik
 
-`launch-session.ps1` Ablauf bei Doppelklatschen:
-1. Begrüßungs-MP3 abspielen (rotierend: 0→1→2→0→..., Index in `assets/greetings/index.txt`)
-2. Claude Desktop App fullscreen auf linkem Bildschirm (x=-1920)
-3. Notion links auf rechtem Bildschirm, VS Code rechts auf rechtem Bildschirm
-4. Spotify starten und minimieren
+Zwei Klatscher innerhalb 1.2s (min 0.1s Abstand) → Trigger. 10s Cooldown danach.
 
-Task manuell neustarten nach Script-Änderungen:
+Wichtige Konstanten in `clap-trigger.py`:
+```python
+THRESHOLD = 0.3       # Mindest-RMS
+HIGH_FREQ_RATIO = 0.4 # Hochfrequenz-Anteil für Klatschen
+HIGH_FREQ_HZ = 2000   # Grenzfrequenz in Hz
+MIN_GAP = 0.1         # Mindestabstand zwischen Klatschen (s)
+MAX_GAP = 1.2         # Maximalabstand für Doppelklatschen (s)
+COOLDOWN = 10.0       # Sekunden nach Trigger
+```
+
+Debug-Log: `scripts/clap-debug.log` — zeigt RMS und HF-Ratio jedes erkannten Sounds.
+Bei Fehlauslösern durch Reden: `HIGH_FREQ_RATIO` auf `0.5` erhöhen.
+Bei nicht erkannten Klatschen: `HIGH_FREQ_RATIO` auf `0.35` senken.
+
+Task nach Script-Änderungen neu starten:
 ```powershell
 Stop-ScheduledTask -TaskName "JarvisClapTrigger"
 Start-ScheduledTask -TaskName "JarvisClapTrigger"
@@ -30,87 +58,36 @@ Start-ScheduledTask -TaskName "JarvisClapTrigger"
 
 ---
 
+## launch-session.ps1
+
+Ablauf:
+1. MP3 sofort async abspielen (blockiert nicht)
+2. Alle 4 Apps gleichzeitig starten (Claude, VS Code, Notion, Spotify)
+3. Fenster per Polling snappen sobald sie da sind (max 10s Wartezeit pro App)
+
+Monitor-Layout: linker Bildschirm x=-1920, rechter x=0. Beide 1920×1080.
+
+---
+
 ## Begrüßungs-MP3s
 
-`assets/greetings/greeting_0.mp3`, `greeting_1.mp3`, `greeting_2.mp3` — pre-generiert mit ElevenLabs, Stimme: Felix Serenitas.
+`assets/greetings/greeting_0/1/2.mp3` — ElevenLabs, Stimme: Felix Serenitas.
+`assets/greetings/index.txt` — enthält `0`, `1` oder `2`.
 
-`assets/greetings/index.txt` — enthält `0`, `1` oder `2`, wird nach jedem Start inkrementiert.
-
-Neue MP3s generieren (ElevenLabs API, einmalig):
+Neue MP3s generieren:
 ```powershell
 python scripts/generate-greetings.py
 ```
 
-MP3-Texte und Voice-Settings in `generate-greetings.py` anpassen, dann neu generieren und Dateien ersetzen.
-
 ---
 
-## Config (config.json)
-
-Liegt im Projektstamm, ist gitignored:
+## config.json (gitignored)
 
 ```json
 {
-  "anthropic_api_key": "...",
   "elevenlabs_api_key": "...",
   "elevenlabs_voice_id": "...",
-  "user_name": "Bally",
-  "user_address": "Sir",
-  "city": "Ebenhausen-Schäftlarn",
   "workspace_path": "C:\\Users\\Bally\\...",
-  "spotify_track": "spotify:track:...",
-  "obsidian_inbox_path": ""
+  "spotify_track": "spotify:track:..."
 }
 ```
-
----
-
-## Jarvis Voice Server (legacy, noch funktionsfähig)
-
-FastAPI-Server mit WebSocket, Claude Haiku, ElevenLabs TTS und Playwright-Browser-Tools.
-
-Server starten (niemals direkt `python server.py` — Audio funktioniert dann nicht):
-```powershell
-Start-Process python -ArgumentList "server.py" `
-    -WorkingDirectory "c:\Users\Bally\OneDrive\Desktop\BUSINESS\Jarvis Template\jarvis-voice-assistant-master" `
-    -RedirectStandardOutput "$env:TEMP\jarvis_stdout.txt" `
-    -RedirectStandardError "$env:TEMP\jarvis_stderr.txt" `
-    -PassThru -NoNewWindow
-```
-
-Port beenden:
-```powershell
-Get-NetTCPConnection -LocalPort 8340 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
-```
-
-Dependencies:
-```powershell
-python -m pip install -r requirements.txt
-python -m playwright install chromium
-```
-
-### Datenpfad (server.py)
-
-```
-Browser (Web Speech API) → WebSocket /ws → process_message()
-  → Claude Haiku (max 400 tokens)
-    → extract_action() — parst [ACTION:TYPE] am Ende der Antwort
-      → synthesize_speech() — ElevenLabs TTS, chunked bei >250 Zeichen
-        → ws.send_json({ type: "response", text, audio: base64 })
-  → execute_action() — SEARCH / OPEN / BROWSE / SCREEN / NEWS
-    → zweiter Claude Haiku-Call (max 250 tokens) → nochmal TTS
-```
-
-Actions werden bei `"Jarvis activate"` immer übersprungen. `extract_action()` trennt gesprochenen Text vom Action-Tag. Systemprompt anpassen: `build_system_prompt()` in `server.py`.
-
-### Browser-Tools (browser_tools.py)
-
-Playwright headless=False, globales Singleton (`_browser`, `_context`). `search_and_read()` lässt Seite offen, `visit()` schliesst sie.
-
-### Frontend (frontend/)
-
-Iron Man HUD: schwarz, Cyan/Blau (#00D4FF, #0080FF), Share Tech Mono. State Machine: `STANDBY ↔ LISTENING → PROCESSING → SPEAKING → STANDBY`. Konversationshistorie im Server (max 16 Nachrichten, verliert sich bei Restart).
-
-### ElevenLabs Free Tier
-
-Nur Premade Voices per API (z.B. Adam: `pNInz6obpgDQGcFmaJgB`). Library/Community-Voices → 402.
