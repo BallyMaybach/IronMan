@@ -7,9 +7,8 @@ Double-clap to launch your work session. That's it.
 1. Jarvis sits silently in your system tray (grey dot = inactive)
 2. Click the tray icon to activate (green dot = listening)
 3. Clap twice → work session launches:
-   - Claude Desktop opens fullscreen on left monitor
-   - Notion + VS Code snap to right monitor
-   - Spotify plays your track in the background
+   - VS Code opens fullscreen on left monitor
+   - Notion + Spotify snap to right monitor
    - A greeting MP3 plays
 
 ## Setup

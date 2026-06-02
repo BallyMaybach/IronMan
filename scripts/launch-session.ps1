@@ -41,9 +41,6 @@ Start-Sleep -Seconds 30
 }
 
 # --- 2. Alle Apps gleichzeitig starten ---
-$claudeExe = "$env:LOCALAPPDATA\AnthropicClaude\claude.exe"
-if (Test-Path $claudeExe) { Start-Process $claudeExe } else { Start-Process "claude://" }
-
 $vscodeExe = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe"
 Start-Process $vscodeExe -ArgumentList "`"$WORKSPACE`""
 
@@ -71,18 +68,11 @@ function Wait-And-Snap($name, $x, $y, $w, $h) {
 # Kurz warten damit Apps starten können, dann parallel snappen
 Start-Sleep -Seconds 2
 
-Wait-And-Snap "claude"   $leftX  $leftY  $screenW          $screenH
-Wait-And-Snap "Notion"   $rightX $rightY ($screenW / 2)    ($screenH - 45)
-Wait-And-Snap "Code"    ($rightX + $screenW / 2) $rightY ($screenW / 2) ($screenH - 45)
+# VS Code (AI OS) → linker Bildschirm fullscreen
+Wait-And-Snap "Code"    $leftX  $leftY  $screenW          $screenH
 
-# Spotify minimieren — warten bis Fenster existiert (max 10s)
-$deadline = (Get-Date).AddSeconds(10)
-while ((Get-Date) -lt $deadline) {
-    $spotify = Get-Process -Name "Spotify" -ErrorAction SilentlyContinue |
-               Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-    if ($spotify) {
-        [WinPos]::ShowWindow($spotify.MainWindowHandle, 6) | Out-Null
-        break
-    }
-    Start-Sleep -Milliseconds 400
-}
+# Notion → rechter Bildschirm links
+Wait-And-Snap "Notion"  $rightX $rightY ($screenW / 2)    $screenH
+
+# Spotify → rechter Bildschirm rechts
+Wait-And-Snap "Spotify" ($rightX + $screenW / 2) $rightY ($screenW / 2) $screenH

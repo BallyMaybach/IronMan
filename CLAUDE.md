@@ -1,9 +1,9 @@
 # CLAUDE.md
 
 - **Projekt:** Jarvis Clap-Trigger
-- **Was es tut:** Doppelklatschen → Begrüßungs-MP3 + Claude Desktop (links fullscreen) + Notion (rechts links) + VS Code (rechts rechts) + Spotify (minimiert, Song läuft)
+- **Was es tut:** Doppelklatschen → Begrüßungs-MP3 + VS Code AI-OS (links fullscreen) + Notion (rechts links) + Spotify (rechts rechts)
 - **Toggle:** System-Tray-Icon (pystray) — Jarvis kann damit ein/ausgeschaltet werden ohne den Task zu stoppen
-- **Stand:** Läuft stabil. Mai 2026 — alter Voice-Assistant-Kram entfernt, nur noch Clap-Trigger.
+- **Stand:** Läuft stabil. Juni 2026 — Layout: VSCode links, Notion + Spotify rechts.
 - **Deployment:** Lokal via Windows Task Scheduler (Task: `JarvisClapTrigger`)
 
 ---
@@ -66,6 +66,7 @@ Ablauf:
 3. Fenster per Polling snappen sobald sie da sind (max 10s Wartezeit pro App)
 
 Monitor-Layout: linker Bildschirm x=-1920, rechter x=0. Beide 1920×1080.
+Snapping: VS Code → links fullscreen. Notion → rechts links (960px breit). Spotify → rechts rechts (960px breit).
 
 ---
 
