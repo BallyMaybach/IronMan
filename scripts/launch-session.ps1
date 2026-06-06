@@ -42,7 +42,7 @@ Start-Sleep -Seconds 30
 
 # --- 2. Alle Apps gleichzeitig starten ---
 $vscodeExe = "$env:LOCALAPPDATA\Programs\Microsoft VS Code\Code.exe"
-Start-Process $vscodeExe -ArgumentList "`"$WORKSPACE`""
+Start-Process $vscodeExe -ArgumentList "--new-window `"C:\Users\Bally\OneDrive\Desktop\BUSINESS\Bally Ordner\AI-OS-Bally`""
 
 $notionExe = "$env:LOCALAPPDATA\Programs\Notion\Notion.exe"
 if (Test-Path $notionExe) { Start-Process $notionExe } else { Start-Process "notion://" }
